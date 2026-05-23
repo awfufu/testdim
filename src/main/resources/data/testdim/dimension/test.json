@@ -1,0 +1,18 @@
+{
+  "type": "testdim:test_type",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "structure_overrides": [],
+      "layers": [
+        {
+          "height": 64,
+          "block": "minecraft:iron_block"
+        }
+      ],
+      "lakes": false,
+      "features": false,
+      "biome": "minecraft:the_void"
+    }
+  }
+}

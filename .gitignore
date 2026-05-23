@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+
+# NeoForge run directories
+run/
+
+# Generated resources
+src/generated/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+hs_err_pid*
+replay_pid*
