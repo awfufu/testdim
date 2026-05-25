@@ -16,7 +16,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.RelativeMovement;
-import net.minecraft.world.food.FoodData;
 import net.minecraft.world.inventory.PlayerEnderChestContainer;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
@@ -46,35 +45,24 @@ public final class PlayerStateManager {
             return true;
         }
 
-        data.setSwitching(true);
-        try {
-            data.setNormalProfile(capturePlayerState(player));
-            if (!data.isTestProfileInitialized()) {
-                PlayerStateProfile initialTestProfile = PlayerStateProfile.createDefaultTestProfile();
-                data.setTestProfile(initialTestProfile);
-                data.setTestProfileInitialized(true);
-                TestDimensionMod.LOGGER.info("Initialized test profile for {}", player.getGameProfile().getName());
-            }
-
-            applyPlayerState(player, data.testProfile());
-            if (player.level().dimension() != TestDimensionKeys.TEST_WORLD) {
-                ServerLevel testLevel = player.server.getLevel(TestDimensionKeys.TEST_WORLD);
-                if (testLevel != null) {
-                    if (data.testProfile().position() != null) {
-                        teleportToSavedOrFallback(player, data.testProfile().position());
-                    }
-
-                    if (player.level().dimension() != TestDimensionKeys.TEST_WORLD) {
-                        teleportToLevelSpawn(player, testLevel);
-                    }
-                }
-            }
-            data.setInTestDimension(true);
-            TestDimensionMod.LOGGER.info("Saved normal profile and restored test profile for {}", player.getGameProfile().getName());
-            return true;
-        } finally {
-            data.setSwitching(false);
+        data.setNormalProfile(capturePlayerState(player));
+        if (!data.isTestProfileInitialized()) {
+            PlayerStateProfile initialTestProfile = PlayerStateProfile.createDefaultTestProfile();
+            data.setTestProfile(initialTestProfile);
+            data.setTestProfileInitialized(true);
+            TestDimensionMod.LOGGER.info("Initialized test profile for {}", player.getGameProfile().getName());
         }
+
+        if (isPositionInTestDimension(data.testProfile().position())) {
+            teleportToSavedOrFallback(player, data.testProfile().position());
+        }
+
+        if (player.level().dimension() != TestDimensionKeys.TEST_WORLD) {
+            teleportToLevelSpawn(player, targetLevel);
+        }
+
+        TestDimensionMod.LOGGER.info("Saved normal profile and started test-dimension transfer for {}", player.getGameProfile().getName());
+        return true;
     }
 
     public static boolean leaveTestDimension(ServerPlayer player, CommandSourceStack source) {
@@ -90,16 +78,43 @@ public final class PlayerStateManager {
             return true;
         }
 
+        data.setTestProfile(capturePlayerState(player));
+        teleportToSavedOrFallback(player, data.normalProfile().position());
+        TestDimensionMod.LOGGER.info("Saved test profile and started normal-dimension transfer for {}", player.getGameProfile().getName());
+        return true;
+    }
+
+    public static void handleDimensionTransition(ServerPlayer player, net.minecraft.resources.ResourceKey<Level> from, net.minecraft.resources.ResourceKey<Level> to) {
+        if (!isTestTransition(from, to)) {
+            return;
+        }
+
+        PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
+        if (data.isSwitching()) {
+            return;
+        }
+
         data.setSwitching(true);
         try {
-            data.setTestProfile(capturePlayerState(player));
-            applyPlayerState(player, data.normalProfile());
-            if (player.level().dimension() == TestDimensionKeys.TEST_WORLD) {
-                teleportToSavedOrFallback(player, data.normalProfile().position());
+            if (to == TestDimensionKeys.TEST_WORLD) {
+                if (!data.isTestProfileInitialized()) {
+                    PlayerStateProfile initialTestProfile = PlayerStateProfile.createDefaultTestProfile();
+                    data.setTestProfile(initialTestProfile);
+                    data.setTestProfileInitialized(true);
+                    TestDimensionMod.LOGGER.info("Initialized test profile for {}", player.getGameProfile().getName());
+                }
+
+                applyPlayerState(player, data.testProfile());
+                data.setInTestDimension(true);
+                TestDimensionMod.LOGGER.info("Restored test profile for {} after dimension change", player.getGameProfile().getName());
+                return;
             }
-            data.setInTestDimension(false);
-            TestDimensionMod.LOGGER.info("Saved test profile and restored normal profile for {}", player.getGameProfile().getName());
-            return true;
+
+            if (from == TestDimensionKeys.TEST_WORLD) {
+                applyPlayerState(player, data.normalProfile());
+                data.setInTestDimension(false);
+                TestDimensionMod.LOGGER.info("Restored normal profile for {} after leaving test dimension", player.getGameProfile().getName());
+            }
         } finally {
             data.setSwitching(false);
         }
@@ -185,6 +200,7 @@ public final class PlayerStateManager {
         }
 
         boolean actuallyInTestDimension = isInTestDimension(player);
+        boolean storedInTestDimension = data.isInTestDimension();
         if (actuallyInTestDimension) {
             data.setTestProfile(capturePlayerState(player));
             data.setTestProfileInitialized(true);
@@ -194,11 +210,11 @@ public final class PlayerStateManager {
             data.setInTestDimension(false);
         }
 
-        if (data.isInTestDimension() != actuallyInTestDimension) {
+        if (storedInTestDimension != actuallyInTestDimension) {
             TestDimensionMod.LOGGER.warn(
                     "Player {} test dimension flag mismatch: stored={}, actual={}",
                     player.getGameProfile().getName(),
-                    data.isInTestDimension(),
+                    storedInTestDimension,
                     actuallyInTestDimension);
             data.setInTestDimension(actuallyInTestDimension);
         }
@@ -212,6 +228,20 @@ public final class PlayerStateManager {
         target.setInTestDimension(source.isInTestDimension());
         target.setTestProfileInitialized(source.isTestProfileInitialized());
         target.setSwitching(false);
+    }
+
+    public static void reconcileAfterRespawnFromTestDimension(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
+        PlayerDimensionData data = newPlayer.getData(ModAttachments.PLAYER_DIMENSION_DATA);
+        if (data.isSwitching() || oldPlayer.level().dimension() != TestDimensionKeys.TEST_WORLD) {
+            return;
+        }
+
+        data.setTestProfile(capturePlayerState(oldPlayer));
+        applyPlayerState(newPlayer, data.normalProfile());
+        data.setInTestDimension(false);
+        TestDimensionMod.LOGGER.info(
+                "Restored normal profile for {} after respawning from the test dimension",
+                newPlayer.getGameProfile().getName());
     }
 
     private static void teleportToLevelSpawn(ServerPlayer player, ServerLevel targetLevel) {
@@ -270,5 +300,13 @@ public final class PlayerStateManager {
 
     private static boolean isInTestDimension(ServerPlayer player) {
         return player.level().dimension() == TestDimensionKeys.TEST_WORLD;
+    }
+
+    private static boolean isTestTransition(net.minecraft.resources.ResourceKey<Level> from, net.minecraft.resources.ResourceKey<Level> to) {
+        return from == TestDimensionKeys.TEST_WORLD || to == TestDimensionKeys.TEST_WORLD;
+    }
+
+    private static boolean isPositionInTestDimension(SavedPosition savedPosition) {
+        return savedPosition != null && TestDimensionKeys.TEST_WORLD.location().toString().equals(savedPosition.dimension());
     }
 }
