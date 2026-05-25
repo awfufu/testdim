@@ -156,6 +156,12 @@ public final class PlayerStateManager {
         player.containerMenu.broadcastChanges();
         player.initInventoryMenu();
 
+        if(isInTestDimension(player)&&player.isDeadOrDying()) {
+            player.setHealth(player.getMaxHealth());
+        }
+
+        player.respawn();
+
         if (targetPosition != null) {
             teleportToSavedOrFallback(player, targetPosition);
         } else if (player.level().dimension() == TestDimensionKeys.TEST_WORLD) {
