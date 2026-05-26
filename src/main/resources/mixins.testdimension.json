@@ -1,0 +1,12 @@
+{
+    "required": true,
+    "package": "com.awfufu.testdimension.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "refmap": "mixins.testdimension.refmap.json",
+    "mixins": [
+        "MixinCommandSourceStack"
+    ],
+    "client": [],
+    "server": [],
+    "minVersion": "0.8.5"
+}
