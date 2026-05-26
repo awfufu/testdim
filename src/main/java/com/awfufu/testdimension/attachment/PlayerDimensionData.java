@@ -13,6 +13,9 @@ public final class PlayerDimensionData implements INBTSerializable<CompoundTag> 
     private boolean testProfileInitialized;
     private transient boolean switching;
 
+    private int savedPermissionLevel = -1;
+    private boolean permissionOverridden;
+
     public PlayerStateProfile normalProfile() {
         return this.normalProfile;
     }
@@ -53,6 +56,22 @@ public final class PlayerDimensionData implements INBTSerializable<CompoundTag> 
         this.switching = switching;
     }
 
+    public int getSavedPermissionLevel() {
+        return this.savedPermissionLevel;
+    }
+
+    public void setSavedPermissionLevel(int savedPermissionLevel) {
+        this.savedPermissionLevel = savedPermissionLevel;
+    }
+
+    public boolean isPermissionOverridden() {
+        return this.permissionOverridden;
+    }
+
+    public void setPermissionOverridden(boolean permissionOverridden) {
+        this.permissionOverridden = permissionOverridden;
+    }
+
     @Override
     public CompoundTag serializeNBT(HolderLookup.Provider provider) {
         CompoundTag tag = new CompoundTag();
@@ -60,8 +79,9 @@ public final class PlayerDimensionData implements INBTSerializable<CompoundTag> 
         tag.put("test_profile", this.testProfile.toTag());
         tag.putBoolean("in_test_dimension", this.inTestDimension);
         tag.putBoolean("test_profile_initialized", this.testProfileInitialized);
+        tag.putInt("saved_permission_level", this.savedPermissionLevel);
+        tag.putBoolean("permission_overridden", this.permissionOverridden);
 
-        // TODO stage 3: store advancement snapshot metadata or restoration markers here.
         return tag;
     }
 
@@ -72,5 +92,7 @@ public final class PlayerDimensionData implements INBTSerializable<CompoundTag> 
         this.inTestDimension = tag.getBoolean("in_test_dimension");
         this.testProfileInitialized = tag.getBoolean("test_profile_initialized");
         this.switching = false;
+        this.savedPermissionLevel = tag.getInt("saved_permission_level");
+        this.permissionOverridden = tag.getBoolean("permission_overridden");
     }
 }

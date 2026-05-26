@@ -11,6 +11,12 @@ displayTest="IGNORE_SERVER_VERSION"
 authors="${mod_authors}"
 description='''${mod_description}'''
 
+[features.${mod_id}]
+javaVersion="[21,)"
+
+[[accessTransformers]]
+file="META-INF/testdimperm.cfg"
+
 [[dependencies.${mod_id}]]
 modId="neoforge"
 type="required"
@@ -24,6 +30,3 @@ type="required"
 versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"
-
-[features.${mod_id}]
-javaVersion="[21,)"

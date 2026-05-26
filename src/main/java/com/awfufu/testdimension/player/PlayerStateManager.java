@@ -104,6 +104,7 @@ public final class PlayerStateManager {
                     TestDimensionMod.LOGGER.info("Initialized test profile for {}", player.getGameProfile().getName());
                 }
 
+                applyPermissionBoost(player, data);
                 applyPlayerState(player, data.testProfile());
                 data.setInTestDimension(true);
                 TestDimensionMod.LOGGER.info("Restored test profile for {} after dimension change", player.getGameProfile().getName());
@@ -111,6 +112,7 @@ public final class PlayerStateManager {
             }
 
             if (from == TestDimensionKeys.TEST_WORLD) {
+                restorePermissionBoost(player, data);
                 applyPlayerState(player, data.normalProfile());
                 data.setInTestDimension(false);
                 TestDimensionMod.LOGGER.info("Restored normal profile for {} after leaving test dimension", player.getGameProfile().getName());
@@ -118,6 +120,30 @@ public final class PlayerStateManager {
         } finally {
             data.setSwitching(false);
         }
+    }
+
+    public static void applyPermissionBoost(ServerPlayer player, PlayerDimensionData data) {
+        if (data.isPermissionOverridden()) {
+            return;
+        }
+        int currentLevel = resolvePermissionLevel(player);
+        data.setSavedPermissionLevel(currentLevel);
+        data.setPermissionOverridden(true);
+        TestDimensionMod.LOGGER.info("Boosted permission for {}: saved={}, override set for test dimension",
+                player.getGameProfile().getName(), currentLevel);
+    }
+
+    public static void restorePermissionBoost(ServerPlayer player, PlayerDimensionData data) {
+        if (!data.isPermissionOverridden()) {
+            return;
+        }
+        data.setPermissionOverridden(false);
+        TestDimensionMod.LOGGER.info("Restored permission for {}: original={}",
+                player.getGameProfile().getName(), data.getSavedPermissionLevel());
+    }
+
+    public static int resolvePermissionLevel(ServerPlayer player) {
+        return player.getServer().getProfilePermissions(player.getGameProfile());
     }
 
     public static PlayerStateProfile capturePlayerState(ServerPlayer player) {
@@ -211,9 +237,15 @@ public final class PlayerStateManager {
             data.setTestProfile(capturePlayerState(player));
             data.setTestProfileInitialized(true);
             data.setInTestDimension(true);
+            if (!data.isPermissionOverridden()) {
+                applyPermissionBoost(player, data);
+            }
         } else {
             data.setNormalProfile(capturePlayerState(player));
             data.setInTestDimension(false);
+            if (data.isPermissionOverridden()) {
+                restorePermissionBoost(player, data);
+            }
         }
 
         if (storedInTestDimension != actuallyInTestDimension) {
@@ -234,6 +266,8 @@ public final class PlayerStateManager {
         target.setInTestDimension(source.isInTestDimension());
         target.setTestProfileInitialized(source.isTestProfileInitialized());
         target.setSwitching(false);
+        target.setSavedPermissionLevel(source.getSavedPermissionLevel());
+        target.setPermissionOverridden(source.isPermissionOverridden());
     }
 
     public static void reconcileAfterRespawnFromTestDimension(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
@@ -245,6 +279,7 @@ public final class PlayerStateManager {
         data.setTestProfile(capturePlayerState(oldPlayer));
         applyPlayerState(newPlayer, data.normalProfile());
         data.setInTestDimension(false);
+        restorePermissionBoost(newPlayer, data);
         TestDimensionMod.LOGGER.info(
                 "Restored normal profile for {} after respawning from the test dimension",
                 newPlayer.getGameProfile().getName());

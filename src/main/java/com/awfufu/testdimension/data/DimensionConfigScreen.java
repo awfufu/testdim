@@ -2,15 +2,21 @@ package com.awfufu.testdimension.data;
 
 import com.awfufu.testdimension.network.ModNetwork;
 
+import com.google.common.collect.Lists;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.PacketDistributor;
+
+import java.util.List;
 
 public class DimensionConfigScreen extends Screen {
     private static final int SCREEN_WIDTH = 380;
@@ -70,39 +76,39 @@ public class DimensionConfigScreen extends Screen {
         int row = centerY + 56;
         int rh = 20;
 
-        coordinateScale = createEditBox(centerX + 120, row, 60, "1.0");
-        ambientLight = createEditBox(col2 + 90, row, 50, "0.0");
+        coordinateScale = createEditBox(centerX + 120, row, 60, "1.0",0);
+        ambientLight = createEditBox(col2 + 90, row, 50, "0.0",0);
         row += rh;
 
-        ultrawarm = createBoolBtn(centerX + 70, row, false);
-        natural = createBoolBtn(col2 + 10, row, true);
-        bedWorks = createBoolBtn(centerX + 70, row += rh, true);
-        respawnAnchor = createBoolBtn(col2 + 10, row, false);
-        hasSkylight = createBoolBtn(centerX + 70, row += rh, true);
-        hasCeiling = createBoolBtn(col2 + 10, row, false);
-        hasRaids = createBoolBtn(centerX + 70, row += rh, true);
-        piglinSafe = createBoolBtn(col2 + 10, row, false);
+        ultrawarm = createBoolBtn(centerX + 70, row, false,0);
+        natural = createBoolBtn(col2 + 10, row, true,0);
+        bedWorks = createBoolBtn(centerX + 70, row += rh, true,0);
+        respawnAnchor = createBoolBtn(col2 + 10, row, false,0);
+        hasSkylight = createBoolBtn(centerX + 70, row += rh, true,0);
+        hasCeiling = createBoolBtn(col2 + 10, row, false,0);
+        hasRaids = createBoolBtn(centerX + 70, row += rh, true,0);
+        piglinSafe = createBoolBtn(col2 + 10, row, false,0);
         row += rh + 2;
 
-        effects = createEditBox(centerX + 80, row, 120, "minecraft:overworld");
+        effects = createEditBox(centerX + 80, row, 120, "minecraft:overworld",0);
         row += rh;
-        infiniburn = createEditBox(centerX + 80, row, 200, "#minecraft:infiniburn_overworld");
+        infiniburn = createEditBox(centerX + 80, row, 200, "#minecraft:infiniburn_overworld",0);
         row += rh;
-        minY = createEditBox(centerX + 65, row, 45, "-64");
-        heightVal = createEditBox(centerX + 160, row, 45, "384");
-        logicalHeight = createEditBox(centerX + 275, row, 45, "384");
+        minY = createEditBox(centerX + 65, row, 45, "-64",0);
+        heightVal = createEditBox(centerX + 160, row, 45, "384",0);
+        logicalHeight = createEditBox(centerX + 275, row, 45, "384",0);
         row += rh;
-        monsterSpawnLight = createEditBox(centerX + 115, row, 50, "0-7");
-        monsterSpawnBlockLimit = createEditBox(centerX + 255, row, 40, "0");
+        monsterSpawnLight = createEditBox(centerX + 115, row, 50, "0-7",0);
+        monsterSpawnBlockLimit = createEditBox(centerX + 255, row, 40, "0",0);
         row += rh + 4;
 
-        generatorBiome = createEditBox(centerX + 80, centerY + 56, 130, "minecraft:the_void");
-        generatorLayers = createEditBox(centerX + 80, centerY + 78, 150, "64x minecraft:iron_block");
-        generatorLakes = createBoolBtn(centerX + 70, centerY + 100, false);
-        generatorFeatures = createBoolBtn(col2 + 10, centerY + 100, false);
+        generatorBiome = createEditBox(centerX + 80, centerY + 56, 130, "minecraft:the_void",1);
+        generatorLayers = createEditBox(centerX + 80, centerY + 78, 150, "64x minecraft:iron_block",1);
+        generatorLakes = createBoolBtn(centerX + 70, centerY + 100, false,1);
+        generatorFeatures = createBoolBtn(col2 + 10, centerY + 100, false,1);
 
-        datapackInput = createEditBox(centerX + 160, centerY + 227, 110, "minecraft:overworld");
-        datapackInput.setVisible(false);
+        datapackInput = createEditBox(centerX + 160, centerY + 227, 110, "minecraft:overworld",2);
+
 
         addRenderableWidget(Button.builder(Component.literal("Load"), btn -> loadFromDatapack())
                 .bounds(centerX + 275, centerY + 227, 40, 20).build());
@@ -117,6 +123,7 @@ public class DimensionConfigScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        //TODO fix UI display problem
         super.render(graphics, mouseX, mouseY, partialTick);
         int centerX = (this.width - SCREEN_WIDTH) / 2;
         int centerY = (this.height - SCREEN_HEIGHT) / 2;
@@ -124,15 +131,18 @@ public class DimensionConfigScreen extends Screen {
         graphics.drawString(font, "Dimension Configuration", centerX + 10, centerY + 8, 0xFFFFFF);
 
         if (tabIndex == 0) {
-            renderTypeTab(graphics, centerX, centerY);
+            renderTypeTab(graphics, centerX, centerY, partialTick);
         } else if (tabIndex == 1) {
-            renderGeneratorTab(graphics, centerX, centerY);
+            renderGeneratorTab(graphics, centerX, centerY, partialTick);
         } else {
-            renderJsonTab(graphics, centerX, centerY);
+            renderJsonTab(graphics, centerX, centerY, partialTick);
         }
     }
 
-    private void renderTypeTab(GuiGraphics graphics, int cx, int cy) {
+    private void renderTypeTab(GuiGraphics graphics, int cx, int cy,float pt) {
+        for (Renderable renderable : this.rendTab1) {
+            renderable.render(graphics, cx, cy, pt);
+        }
         int row = cy + 58;
         int rh = 20;
         graphics.drawString(font, "coordinate_scale:", cx + 10, row + 6, 0xAAAAAA);
@@ -162,14 +172,20 @@ public class DimensionConfigScreen extends Screen {
         graphics.drawString(font, "block_limit:", cx + 190, row + 6, 0xAAAAAA);
     }
 
-    private void renderGeneratorTab(GuiGraphics graphics, int cx, int cy) {
+    private void renderGeneratorTab(GuiGraphics graphics, int cx, int cy,float pt) {
+        for (Renderable renderable : this.rendTab2) {
+            renderable.render(graphics, cx, cy, pt);
+        }
         graphics.drawString(font, "Biome:", cx + 10, cy + 62, 0xAAAAAA);
         graphics.drawString(font, "Layers:", cx + 10, cy + 84, 0xAAAAAA);
         graphics.drawString(font, "Lakes:", cx + 10, cy + 106, 0xAAAAAA);
         graphics.drawString(font, "Features:", cx + 140, cy + 106, 0xAAAAAA);
     }
 
-    private void renderJsonTab(GuiGraphics graphics, int cx, int cy) {
+    private void renderJsonTab(GuiGraphics graphics, int cx, int cy,float pt) {
+        for (Renderable renderable : this.rendTab3) {
+            renderable.render(graphics, cx, cy, pt);
+        }
         String typeJson = DimDataModifier.buildTypeJson();
         String dimJson = DimDataModifier.buildDimensionJson();
         graphics.drawString(font, "Dimension Type JSON:", cx + 10, cy + 56, 0xAAAAAA);
@@ -213,21 +229,43 @@ public class DimensionConfigScreen extends Screen {
             }
         }
     }
+    public final List<Renderable> rendTab1 = Lists.newArrayList();
+    public final List<Renderable> rendTab2 = Lists.newArrayList();
+    public final List<Renderable> rendTab3 = Lists.newArrayList();
 
-    private EditBox createEditBox(int x, int y, int w, String defaultValue) {
+    protected <T extends GuiEventListener & Renderable & NarratableEntry> T addRenderableWidget(T renderable, int tabIndex) {
+        switch (tabIndex) {
+            case 0:
+                rendTab1.add(renderable);
+                break;
+            case 1:
+                rendTab2.add(renderable);
+                break;
+            case 2:
+                rendTab3.add(renderable);
+                break;
+            default:
+                break;
+        }
+        this.addWidget(renderable);
+        return renderable;
+    }
+
+
+    private EditBox createEditBox(int x, int y, int w, String defaultValue,int tabIndex) {
         EditBox box = new EditBox(font, x, y, w, 16, Component.literal(defaultValue));
         box.setValue(defaultValue);
-        addRenderableWidget(box);
+        addRenderableWidget(box,tabIndex);
         return box;
     }
 
-    private CycleButton<Boolean> createBoolBtn(int x, int y, boolean defaultValue) {
+    private CycleButton<Boolean> createBoolBtn(int x, int y, boolean defaultValue,int tabIndex) {
         CycleButton<Boolean> btn = CycleButton.booleanBuilder(Component.literal("ON"), Component.literal("OFF"))
                 .displayOnlyValue()
                 .withInitialValue(defaultValue)
                 .create(x, y, 44, 16, Component.literal(""), (cb, val) -> {
                 });
-        addRenderableWidget(btn);
+        addRenderableWidget(btn,tabIndex);
         return btn;
     }
 
