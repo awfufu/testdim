@@ -50,7 +50,7 @@ public class DimensionGeneratorConfig {
         public boolean lakes;
         public boolean features;
         @SerializedName("structure_overrides")
-        public String structureOverrides;
+        public List<String> structureOverrides;
 
         public FlatSettings() {
             this.layers = new ArrayList<>();
@@ -58,7 +58,7 @@ public class DimensionGeneratorConfig {
             this.biome = "minecraft:the_void";
             this.lakes = false;
             this.features = false;
-            this.structureOverrides = "[]";
+            this.structureOverrides = new ArrayList<>();
         }
 
         public FlatSettings(FlatSettings other) {
@@ -71,16 +71,20 @@ public class DimensionGeneratorConfig {
             this.biome = other.biome;
             this.lakes = other.lakes;
             this.features = other.features;
-            this.structureOverrides = other.structureOverrides;
+            this.structureOverrides = other.structureOverrides != null
+                    ? new ArrayList<>(other.structureOverrides)
+                    : new ArrayList<>();
         }
 
         public JsonObject toJsonObject() {
             JsonObject obj = new JsonObject();
-            try {
-                obj.add("structure_overrides", new Gson().fromJson(structureOverrides != null ? structureOverrides : "[]", JsonArray.class));
-            } catch (Exception e) {
-                obj.add("structure_overrides", new JsonArray());
+            JsonArray overridesArr = new JsonArray();
+            if (structureOverrides != null) {
+                for (String s : structureOverrides) {
+                    overridesArr.add(s);
+                }
             }
+            obj.add("structure_overrides", overridesArr);
             JsonArray layersArr = new JsonArray();
             if (layers != null) {
                 for (Layer layer : layers) {

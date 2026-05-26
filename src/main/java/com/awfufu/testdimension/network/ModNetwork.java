@@ -2,11 +2,9 @@ package com.awfufu.testdimension.network;
 
 import com.awfufu.testdimension.TestDimensionMod;
 import com.awfufu.testdimension.data.DimDataModifier;
-import com.awfufu.testdimension.data.DimensionConfigScreen;
 import com.awfufu.testdimension.data.DimensionGeneratorConfig;
 import com.awfufu.testdimension.data.DimensionTypeConfig;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -21,7 +19,13 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class ModNetwork {
+    private static ClientScreenHandler screenHandler = ClientScreenHandler.NOOP;
+
     private ModNetwork() {
+    }
+
+    public static void setScreenHandler(ClientScreenHandler handler) {
+        screenHandler = handler;
     }
 
     public static void register(IEventBus modBus) {
@@ -29,9 +33,12 @@ public final class ModNetwork {
             PayloadRegistrar registrar = event.registrar("1");
 
             registrar.playToClient(OpenDimConfigScreenPayload.TYPE, OpenDimConfigScreenPayload.STREAM_CODEC,
-                    (payload, context) -> context.enqueueWork(() -> {
-                        Minecraft.getInstance().setScreen(new DimensionConfigScreen());
-                    }));
+                    (payload, context) -> context.enqueueWork(() -> screenHandler.openConfigScreen()));
+
+            registrar.playToClient(DatapackDimResponsePayload.TYPE, DatapackDimResponsePayload.STREAM_CODEC,
+                    (payload, context) -> context.enqueueWork(() -> screenHandler.onDatapackResponse(
+                            payload.typeConfigJson(), payload.dimConfigJson(),
+                            payload.dimensionId(), payload.error())));
 
             registrar.playToServer(ApplyDimConfigPayload.TYPE, ApplyDimConfigPayload.STREAM_CODEC,
                     (payload, context) -> context.enqueueWork(() -> {
@@ -83,13 +90,6 @@ public final class ModNetwork {
                         }
                     }));
 
-            registrar.playToClient(DatapackDimResponsePayload.TYPE, DatapackDimResponsePayload.STREAM_CODEC,
-                    (payload, context) -> context.enqueueWork(() -> {
-                        if (Minecraft.getInstance().screen instanceof DimensionConfigScreen screen) {
-                            screen.onDatapackResponse(payload.typeConfigJson(), payload.dimConfigJson(),
-                                    payload.dimensionId(), payload.error());
-                        }
-                    }));
         });
     }
 

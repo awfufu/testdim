@@ -11,11 +11,14 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@OnlyIn(Dist.CLIENT)
 public class DimensionConfigScreen extends Screen {
     private static final int SCREEN_WIDTH = 380;
     private static final int SCREEN_HEIGHT = 240;
@@ -74,17 +77,17 @@ public class DimensionConfigScreen extends Screen {
         ambientLight = newEditBox(col2 + 90, row, 50, "0.0");
         row += rh;
 
-        ultrawarm = newBoolBtn(cx + 70, row, false);
-        natural = newBoolBtn(col2 + 10, row, true);
+        ultrawarm = newBoolBtn(cx + 80, row, false);
+        natural = newBoolBtn(col2 + 20, row, true);
         row += rh;
-        bedWorks = newBoolBtn(cx + 70, row, true);
-        respawnAnchor = newBoolBtn(col2 + 10, row, false);
+        bedWorks = newBoolBtn(cx + 80, row, true);
+        respawnAnchor = newBoolBtn(col2 + 20, row, false);
         row += rh;
-        hasSkylight = newBoolBtn(cx + 70, row, true);
-        hasCeiling = newBoolBtn(col2 + 10, row, false);
+        hasSkylight = newBoolBtn(cx + 80, row, true);
+        hasCeiling = newBoolBtn(col2 + 20, row, false);
         row += rh;
-        hasRaids = newBoolBtn(cx + 70, row, true);
-        piglinSafe = newBoolBtn(col2 + 10, row, false);
+        hasRaids = newBoolBtn(cx + 80, row, true);
+        piglinSafe = newBoolBtn(col2 + 20, row, false);
         row += rh + 2;
 
         effects = newEditBox(cx + 80, row, 120, "minecraft:overworld");
@@ -100,7 +103,7 @@ public class DimensionConfigScreen extends Screen {
 
         generatorBiome = newEditBox(cx + 80, cy + 56, 130, "minecraft:the_void");
         generatorLayers = newEditBox(cx + 80, cy + 78, 150, "64x minecraft:iron_block");
-        generatorLakes = newBoolBtn(cx + 70, cy + 100, false);
+        generatorLakes = newBoolBtn(cx + 80, cy + 100, false);
         generatorFeatures = newBoolBtn(col2 + 10, cy + 100, false);
 
         datapackInput = newEditBox(cx + 160, cy + 227, 110, "minecraft:overworld");

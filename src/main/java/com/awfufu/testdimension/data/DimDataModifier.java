@@ -5,17 +5,9 @@ import com.awfufu.testdimension.TestDimensionMod;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
-
-import java.io.IOException;
-import java.io.Reader;
-import java.lang.reflect.Field;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -23,6 +15,22 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.levelgen.FlatLevelSource;
+import net.minecraft.world.level.levelgen.flat.FlatLayerInfo;
+import net.minecraft.world.level.levelgen.flat.FlatLevelGeneratorSettings;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 public final class DimDataModifier {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -169,51 +177,127 @@ public final class DimDataModifier {
             TestDimensionMod.LOGGER.warn("Failed to execute /reload: {}", e.getMessage());
         }
 
-        ServerLevel oldLevel = server.getLevel(TestDimensionKeys.TEST_WORLD);
-        if (oldLevel == null) {
+        ServerLevel level = server.getLevel(TestDimensionKeys.TEST_WORLD);
+        if (level == null) {
             return "Config saved. Test dimension not loaded yet - new settings on first entry.";
         }
 
-        return evacuateAndClose(server, oldLevel);
+        int evacuated = evacuatePlayers(level, server);
+        String result = applyFlatGeneratorSettings(level, server);
+
+        return result + (evacuated > 0 ? " (" + evacuated + " players evacuated)" : "");
     }
 
-    private static String evacuateAndClose(MinecraftServer server, ServerLevel oldLevel) {
+    private static int evacuatePlayers(ServerLevel level, MinecraftServer server) {
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
-        if (overworld == null) {
-            return "Config saved. Cannot hot-reload: overworld not available.";
-        }
-
-        int evacuated = 0;
-        for (ServerPlayer player : List.copyOf(oldLevel.players())) {
+        if (overworld == null) return 0;
+        int count = 0;
+        for (ServerPlayer player : List.copyOf(level.players())) {
             player.teleportTo(overworld, player.getX(), overworld.getMaxBuildHeight(),
                     player.getZ(), java.util.Set.of(), player.getYRot(), player.getXRot());
-            evacuated++;
+            count++;
         }
-        if (evacuated > 0) {
-            TestDimensionMod.LOGGER.info("Evacuated {} players from test dimension", evacuated);
-        }
+        return count;
+    }
 
+    @SuppressWarnings("unchecked")
+    private static String applyFlatGeneratorSettings(ServerLevel level, MinecraftServer server) {
         try {
-            oldLevel.save(null, true, false);
-            oldLevel.getChunkSource().close();
-        } catch (IOException e) {
-            TestDimensionMod.LOGGER.error("Failed to save/close test dimension: {}", e.getMessage());
-            return "Config saved but failed to close test dimension: " + e.getMessage();
-        }
+            ChunkGenerator generator = level.getChunkSource().getGenerator();
+            if (!(generator instanceof FlatLevelSource flatSource)) {
+                return "Config saved. Generator is not flat - restart required.";
+            }
 
-        try {
-            Field levelsField = MinecraftServer.class.getDeclaredField("levels");
-            levelsField.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            Map<ResourceKey<Level>, ServerLevel> levels =
-                    (Map<ResourceKey<Level>, ServerLevel>) levelsField.get(server);
-            levels.remove(TestDimensionKeys.TEST_WORLD);
-            TestDimensionMod.LOGGER.info("Unloaded test dimension from server.levels");
+            FlatLevelGeneratorSettings settings = getFlatSettings(flatSource);
+            if (settings == null) {
+                return "Config saved. Could not access flat generator settings.";
+            }
+
+            updateFlatLayers(settings, server);
+            updateFlatBiome(settings, server);
+            updateFlatDecoration(settings);
+
+            TestDimensionMod.LOGGER.info("Hot-reloaded flat generator settings in-place");
+            return "Generator hot-reloaded - new chunks will use updated settings.";
         } catch (Exception e) {
-            TestDimensionMod.LOGGER.error("Failed to unload test dimension: {}", e.getMessage());
-            return "Config saved. Could not unload old dimension - restart required.";        }
+            TestDimensionMod.LOGGER.error("Failed to hot-reload generator settings", e);
+            return "Config saved but generator hot-reload failed: " + e.getMessage();
+        }
+    }
 
-        return "Config saved and hot-reloaded. (" + evacuated + " players evacuated. Type changes need restart, generator changes take effect.)";
+    private static FlatLevelGeneratorSettings getFlatSettings(FlatLevelSource flatSource) {
+        try {
+            Field settingsField = findField(FlatLevelSource.class, "settings");
+            settingsField.setAccessible(true);
+            Holder<FlatLevelGeneratorSettings> holder =
+                    (Holder<FlatLevelGeneratorSettings>) settingsField.get(flatSource);
+            return holder.value();
+        } catch (Exception e) {
+            TestDimensionMod.LOGGER.error("Failed to read flat source settings field: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private static void updateFlatLayers(FlatLevelGeneratorSettings settings, MinecraftServer server) {
+        try {
+            Field layersField = findField(FlatLevelGeneratorSettings.class, "layers");
+            layersField.setAccessible(true);
+            List<FlatLayerInfo> layers = (List<FlatLayerInfo>) layersField.get(settings);
+            layers.clear();
+
+            for (var layerCfg : currentDimConfig.flatSettings.layers) {
+                ResourceLocation blockId = ResourceLocation.tryParse(layerCfg.block);
+                if (blockId == null) continue;
+                Block block = server.registryAccess().registryOrThrow(Registries.BLOCK).get(blockId);
+                if (block != null) {
+                    layers.add(new FlatLayerInfo(layerCfg.height, block));
+                }
+            }
+            TestDimensionMod.LOGGER.info("Updated flat layers: {} entries", layers.size());
+        } catch (Exception e) {
+            TestDimensionMod.LOGGER.error("Failed to update flat layers: {}", e.getMessage());
+        }
+    }
+
+    private static void updateFlatBiome(FlatLevelGeneratorSettings settings, MinecraftServer server) {
+        try {
+            ResourceLocation biomeId = ResourceLocation.tryParse(currentDimConfig.flatSettings.biome);
+            if (biomeId == null) return;
+
+            Registry<Biome> biomeReg = server.registryAccess().registryOrThrow(Registries.BIOME);
+            ResourceKey<Biome> key = ResourceKey.create(Registries.BIOME, biomeId);
+            Optional<Holder.Reference<Biome>> holderOpt = biomeReg.getHolder(key);
+            if (holderOpt.isEmpty()) return;
+
+            Field biomeField = findField(FlatLevelGeneratorSettings.class, "biome");
+            biomeField.setAccessible(true);
+            biomeField.set(settings, holderOpt.get());
+            TestDimensionMod.LOGGER.info("Updated flat biome to {}", biomeId);
+        } catch (Exception e) {
+            TestDimensionMod.LOGGER.error("Failed to update flat biome: {}", e.getMessage());
+        }
+    }
+
+    private static void updateFlatDecoration(FlatLevelGeneratorSettings settings) {
+        try {
+            Field decorationField = findField(FlatLevelGeneratorSettings.class, "decoration");
+            decorationField.setAccessible(true);
+            Object decoObj = decorationField.get(settings);
+            if (decoObj == null) return;
+
+            for (Field f : decoObj.getClass().getDeclaredFields()) {
+                f.setAccessible(true);
+                if (f.getName().equals("lakes")) {
+                    f.setBoolean(decoObj, currentDimConfig.flatSettings.lakes);
+                } else if (f.getName().equals("features")) {
+                    f.setBoolean(decoObj, currentDimConfig.flatSettings.features);
+                }
+            }
+            TestDimensionMod.LOGGER.info("Updated flat decoration: lakes={}, features={}",
+                    currentDimConfig.flatSettings.lakes, currentDimConfig.flatSettings.features);
+        } catch (Exception e) {
+            TestDimensionMod.LOGGER.error("Failed to update flat decoration: {}", e.getMessage());
+        }
     }
 
     private static String readerToString(Reader reader) throws IOException {
@@ -224,5 +308,17 @@ public final class DimDataModifier {
             sb.append(buf, 0, n);
         }
         return sb.toString();
+    }
+
+    private static Field findField(Class<?> clazz, String fieldName) throws NoSuchFieldException {
+        Class<?> current = clazz;
+        while (current != null) {
+            try {
+                return current.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException e) {
+                current = current.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(fieldName + " not found in " + clazz);
     }
 }
