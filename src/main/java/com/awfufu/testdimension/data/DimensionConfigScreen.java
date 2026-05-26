@@ -65,12 +65,7 @@ public class DimensionConfigScreen extends Screen {
         int centerX = (this.width - SCREEN_WIDTH) / 2;
         int centerY = (this.height - SCREEN_HEIGHT) / 2;
 
-        addRenderableWidget(Button.builder(Component.literal("Type"), btn -> tabIndex = 0)
-                .bounds(centerX + 10, centerY + 28, 60, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Generator"), btn -> tabIndex = 1)
-                .bounds(centerX + 72, centerY + 28, 60, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("JSON"), btn -> tabIndex = 2)
-                .bounds(centerX + 134, centerY + 28, 60, 20).build());
+
 
         int col2 = centerX + 200;
         int row = centerY + 56;
@@ -110,6 +105,23 @@ public class DimensionConfigScreen extends Screen {
         datapackInput = createEditBox(centerX + 160, centerY + 227, 110, "minecraft:overworld",2);
 
 
+
+        refreshFromConfig();
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.render(graphics, mouseX, mouseY, partialTick);
+        int centerX = (this.width - SCREEN_WIDTH) / 2;
+        int centerY = (this.height - SCREEN_HEIGHT) / 2;
+        clearWidgets();
+        graphics.drawString(font, "Dimension Configuration", centerX + 10, centerY + 8, 0xFFFFFF);
+        addRenderableWidget(Button.builder(Component.literal("Type"), btn -> tabIndex = 0)
+                .bounds(centerX + 10, centerY + 28, 60, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Generator"), btn -> tabIndex = 1)
+                .bounds(centerX + 72, centerY + 28, 60, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("JSON"), btn -> tabIndex = 2)
+                .bounds(centerX + 134, centerY + 28, 60, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Load"), btn -> loadFromDatapack())
                 .bounds(centerX + 275, centerY + 227, 40, 20).build());
 
@@ -117,19 +129,6 @@ public class DimensionConfigScreen extends Screen {
                 .bounds(centerX + 10, centerY + 215, 100, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Done"), btn -> onClose())
                 .bounds(centerX + SCREEN_WIDTH - 50, centerY + 215, 40, 20).build());
-
-        refreshFromConfig();
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        //TODO fix UI display problem
-        super.render(graphics, mouseX, mouseY, partialTick);
-        int centerX = (this.width - SCREEN_WIDTH) / 2;
-        int centerY = (this.height - SCREEN_HEIGHT) / 2;
-
-        graphics.drawString(font, "Dimension Configuration", centerX + 10, centerY + 8, 0xFFFFFF);
-
         if (tabIndex == 0) {
             renderTypeTab(graphics, centerX, centerY, partialTick);
         } else if (tabIndex == 1) {
@@ -140,9 +139,12 @@ public class DimensionConfigScreen extends Screen {
     }
 
     private void renderTypeTab(GuiGraphics graphics, int cx, int cy,float pt) {
+
         for (Renderable renderable : this.rendTab1) {
             renderable.render(graphics, cx, cy, pt);
+            this.addWidget((GuiEventListener & NarratableEntry)renderable);
         }
+
         int row = cy + 58;
         int rh = 20;
         graphics.drawString(font, "coordinate_scale:", cx + 10, row + 6, 0xAAAAAA);
@@ -173,8 +175,10 @@ public class DimensionConfigScreen extends Screen {
     }
 
     private void renderGeneratorTab(GuiGraphics graphics, int cx, int cy,float pt) {
-        for (Renderable renderable : this.rendTab2) {
+
+        for (Renderable renderable : this.rendTab1) {
             renderable.render(graphics, cx, cy, pt);
+            this.addWidget((GuiEventListener & NarratableEntry)renderable);
         }
         graphics.drawString(font, "Biome:", cx + 10, cy + 62, 0xAAAAAA);
         graphics.drawString(font, "Layers:", cx + 10, cy + 84, 0xAAAAAA);
@@ -183,8 +187,10 @@ public class DimensionConfigScreen extends Screen {
     }
 
     private void renderJsonTab(GuiGraphics graphics, int cx, int cy,float pt) {
-        for (Renderable renderable : this.rendTab3) {
+
+        for (Renderable renderable : this.rendTab1) {
             renderable.render(graphics, cx, cy, pt);
+            this.addWidget((GuiEventListener & NarratableEntry)renderable);
         }
         String typeJson = DimDataModifier.buildTypeJson();
         String dimJson = DimDataModifier.buildDimensionJson();
@@ -247,7 +253,6 @@ public class DimensionConfigScreen extends Screen {
             default:
                 break;
         }
-        this.addWidget(renderable);
         return renderable;
     }
 
