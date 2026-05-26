@@ -47,11 +47,10 @@ public final class ModNetwork {
                                     : DimensionGeneratorConfig.fromJson(payload.dimConfigJson());
                             DimDataModifier.updateTypeConfig(typeConfig);
                             DimDataModifier.updateDimConfig(dimConfig);
-                            DimDataModifier.saveTypeConfigToFile(DimDataModifier.getDefaultTypeConfigPath());
-                            DimDataModifier.saveDimensionConfigToFile(DimDataModifier.getDefaultDimensionConfigPath());
-                            player.sendSystemMessage(
-                                    Component.literal("Dimension configuration applied and saved. Changes take effect after server restart."));
-                            TestDimensionMod.LOGGER.info("{} applied new dimension config", player.getGameProfile().getName());
+
+                            String result = DimDataModifier.reloadTestDimension(player.getServer());
+                            player.sendSystemMessage(Component.literal(result));
+                            TestDimensionMod.LOGGER.info("{} applied and hot-reloaded dimension config", player.getGameProfile().getName());
                         } catch (Exception e) {
                             player.sendSystemMessage(Component.literal("Failed to apply config: " + e.getMessage()));
                             TestDimensionMod.LOGGER.error("Failed to apply dimension config", e);

@@ -8,14 +8,21 @@ import com.google.gson.JsonObject;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.world.level.Level;
 
 public final class DimDataModifier {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -60,7 +67,7 @@ public final class DimDataModifier {
             Optional<Resource> resource = server.getResourceManager().getResource(resourceLoc);
             if (resource.isPresent()) {
                 try (Reader reader = resource.get().openAsReader()) {
-                    return DimensionTypeConfig.fromJson(new String(readerToBytes(reader)));
+                    return DimensionTypeConfig.fromJson(readerToString(reader));
                 }
             }
         } catch (Exception e) {
@@ -76,7 +83,7 @@ public final class DimDataModifier {
             Optional<Resource> resource = server.getResourceManager().getResource(resourceLoc);
             if (resource.isPresent()) {
                 try (Reader reader = resource.get().openAsReader()) {
-                    JsonObject obj = GSON.fromJson(new String(readerToBytes(reader)), JsonObject.class);
+                    JsonObject obj = GSON.fromJson(readerToString(reader), JsonObject.class);
                     DimensionGeneratorConfig config = new DimensionGeneratorConfig();
                     if (obj.has("generator")) {
                         config = new Gson().fromJson(obj.get("generator"), DimensionGeneratorConfig.class);
@@ -151,13 +158,71 @@ public final class DimDataModifier {
         return Paths.get("src", "main", "resources", "data", "testdim", "dimension", "test.json");
     }
 
-    private static byte[] readerToBytes(Reader reader) throws IOException {
+    public static String reloadTestDimension(MinecraftServer server) {
+        saveTypeConfigToFile(getDefaultTypeConfigPath());
+        saveDimensionConfigToFile(getDefaultDimensionConfigPath());
+
+        try {
+            server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "reload");
+            TestDimensionMod.LOGGER.info("Executed /reload after saving dimension config");
+        } catch (Exception e) {
+            TestDimensionMod.LOGGER.warn("Failed to execute /reload: {}", e.getMessage());
+        }
+
+        ServerLevel oldLevel = server.getLevel(TestDimensionKeys.TEST_WORLD);
+        if (oldLevel == null) {
+            return "Config saved. Test dimension not loaded yet - new settings on first entry.";
+        }
+
+        return evacuateAndClose(server, oldLevel);
+    }
+
+    private static String evacuateAndClose(MinecraftServer server, ServerLevel oldLevel) {
+        ServerLevel overworld = server.getLevel(Level.OVERWORLD);
+        if (overworld == null) {
+            return "Config saved. Cannot hot-reload: overworld not available.";
+        }
+
+        int evacuated = 0;
+        for (ServerPlayer player : List.copyOf(oldLevel.players())) {
+            player.teleportTo(overworld, player.getX(), overworld.getMaxBuildHeight(),
+                    player.getZ(), java.util.Set.of(), player.getYRot(), player.getXRot());
+            evacuated++;
+        }
+        if (evacuated > 0) {
+            TestDimensionMod.LOGGER.info("Evacuated {} players from test dimension", evacuated);
+        }
+
+        try {
+            oldLevel.save(null, true, false);
+            oldLevel.getChunkSource().close();
+        } catch (IOException e) {
+            TestDimensionMod.LOGGER.error("Failed to save/close test dimension: {}", e.getMessage());
+            return "Config saved but failed to close test dimension: " + e.getMessage();
+        }
+
+        try {
+            Field levelsField = MinecraftServer.class.getDeclaredField("levels");
+            levelsField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<ResourceKey<Level>, ServerLevel> levels =
+                    (Map<ResourceKey<Level>, ServerLevel>) levelsField.get(server);
+            levels.remove(TestDimensionKeys.TEST_WORLD);
+            TestDimensionMod.LOGGER.info("Unloaded test dimension from server.levels");
+        } catch (Exception e) {
+            TestDimensionMod.LOGGER.error("Failed to unload test dimension: {}", e.getMessage());
+            return "Config saved. Could not unload old dimension - restart required.";        }
+
+        return "Config saved and hot-reloaded. (" + evacuated + " players evacuated. Type changes need restart, generator changes take effect.)";
+    }
+
+    private static String readerToString(Reader reader) throws IOException {
         StringBuilder sb = new StringBuilder();
         char[] buf = new char[8192];
         int n;
         while ((n = reader.read(buf)) != -1) {
             sb.append(buf, 0, n);
         }
-        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return sb.toString();
     }
 }

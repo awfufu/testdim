@@ -166,8 +166,12 @@ public final class TestDimensionEvents {
 
         if (event.getTo() == TestDimensionKeys.TEST_WORLD) {
             TestDimensionMod.LOGGER.info("Applied test-dimension transition to {}", player.getGameProfile().getName());
+            player = (ServerPlayer) event.getEntity();
+            player.server.getCommands().sendCommands(player);
         } else if (event.getFrom() == TestDimensionKeys.TEST_WORLD) {
             TestDimensionMod.LOGGER.info("Applied normal-dimension transition to {}", player.getGameProfile().getName());
+            player = (ServerPlayer) event.getEntity();
+            player.server.getCommands().sendCommands(player);
         }
     }
 

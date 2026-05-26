@@ -17,6 +17,9 @@ javaVersion="[21,)"
 [[accessTransformers]]
 file="META-INF/testdimperm.cfg"
 
+[[mixins]]
+config="mixins.testdimensions.json"
+
 [[dependencies.${mod_id}]]
 modId="neoforge"
 type="required"

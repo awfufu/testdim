@@ -31,8 +31,9 @@ runs {
 
         modSource project.sourceSets.main
     }
-
     client {
+        jvmArguments '-XX:+IgnoreUnrecognizedVMOptions', '-XX:+AllowEnhancedClassRedefinition','-Dmixin.debug=true'
+        workingDirectory project.file('run/client')
         systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
     }
 
