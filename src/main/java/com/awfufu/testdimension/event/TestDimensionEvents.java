@@ -1,30 +1,29 @@
 package com.awfufu.testdimension.event;
 
-import java.lang.reflect.Field;
-
 import com.awfufu.testdimension.TestDimensionKeys;
 import com.awfufu.testdimension.TestDimensionMod;
 import com.awfufu.testdimension.attachment.ModAttachments;
 import com.awfufu.testdimension.attachment.PlayerDimensionData;
 import com.awfufu.testdimension.command.TestDimensionCommands;
+import com.awfufu.testdimension.data.DimDataModifier;
 import com.awfufu.testdimension.player.PlayerStateManager;
-
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.RedirectModifier;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
-import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.tree.CommandNode;
-
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.CommandEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+
+import java.lang.reflect.Field;
 
 @EventBusSubscriber(modid = TestDimensionMod.MOD_ID)
 public final class TestDimensionEvents {
@@ -70,7 +69,7 @@ public final class TestDimensionEvents {
                 if (data.isInTestDimension()) {
                     var redirected = originalModifier.apply(context);
                     for (CommandSourceStack rs : redirected) {
-                        if (rs.getLevel().dimension() != TestDimensionKeys.TEST_WORLD) {
+                        if (rs.getLevel().dimension() != TestDimensionKeys.TEST_WORLD()) {
                             throw RESTRICTED_DIMENSION.create();
                         }
                     }
@@ -95,7 +94,7 @@ public final class TestDimensionEvents {
             if (ctx.getSource().getEntity() instanceof ServerPlayer player) {
                 PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
                 if (data.isInTestDimension()) {
-                    builder.suggest(TestDimensionKeys.TEST_WORLD_ID.toString());
+                    builder.suggest(TestDimensionKeys.TEST_WORLD_ID().toString());
                     return builder.buildFuture();
                 }
             }
@@ -147,7 +146,7 @@ public final class TestDimensionEvents {
             if (!dimArg.isEmpty()) {
                 net.minecraft.resources.ResourceLocation loc =
                         net.minecraft.resources.ResourceLocation.tryParse(dimArg);
-                if (loc != null && !TestDimensionKeys.TEST_WORLD_ID.equals(loc)) {
+                if (loc != null && !TestDimensionKeys.TEST_WORLD_ID().equals(loc)) {
                     return true;
                 }
             }
@@ -164,14 +163,16 @@ public final class TestDimensionEvents {
 
         PlayerStateManager.handleDimensionTransition(player, event.getFrom(), event.getTo());
 
-        if (event.getTo() == TestDimensionKeys.TEST_WORLD) {
+        if (event.getTo() == TestDimensionKeys.TEST_WORLD()) {
             TestDimensionMod.LOGGER.info("Applied test-dimension transition to {}", player.getGameProfile().getName());
             player = (ServerPlayer) event.getEntity();
             player.server.getCommands().sendCommands(player);
-        } else if (event.getFrom() == TestDimensionKeys.TEST_WORLD) {
+            player.server.getPlayerList().sendPlayerPermissionLevel(player);
+        } else if (event.getFrom() == TestDimensionKeys.TEST_WORLD()) {
             TestDimensionMod.LOGGER.info("Applied normal-dimension transition to {}", player.getGameProfile().getName());
             player = (ServerPlayer) event.getEntity();
             player.server.getCommands().sendCommands(player);
+            player.server.getPlayerList().sendPlayerPermissionLevel(player);
         }
     }
 
@@ -197,6 +198,29 @@ public final class TestDimensionEvents {
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             PlayerStateManager.saveCurrentStateIfNeeded(player);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onServerStarted(ServerStartedEvent event) {
+        DimDataModifier.detectAndApplyDatapackOverrides(event.getServer());
+        TestDimensionMod.LOGGER.info("Server started - checked for datapack dimension overrides");
+    }
+
+    @SubscribeEvent
+    public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
+            if (data.isRespawnInTestDimension()) {
+                ServerLevel testLevel = player.server.getLevel(TestDimensionKeys.TEST_WORLD());
+                if (testLevel != null) {
+                    player.server.execute(() -> {
+                        if (!player.isRemoved()) {
+                            PlayerStateManager.teleportToTestDimensionRespawn(player, testLevel);
+                        }
+                    });
+                }
+            }
         }
     }
 

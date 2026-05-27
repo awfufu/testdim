@@ -1,16 +1,14 @@
 package com.awfufu.testdimension.player;
 
-import java.util.Set;
-
 import com.awfufu.testdimension.TestDimensionKeys;
 import com.awfufu.testdimension.TestDimensionMod;
 import com.awfufu.testdimension.attachment.ModAttachments;
 import com.awfufu.testdimension.attachment.PlayerDimensionData;
-
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -20,6 +18,10 @@ import net.minecraft.world.inventory.PlayerEnderChestContainer;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.Vec3;
+
+import javax.annotation.Nullable;
+import java.util.Set;
 
 public final class PlayerStateManager {
     private PlayerStateManager() {
@@ -33,9 +35,9 @@ public final class PlayerStateManager {
             return false;
         }
 
-        ServerLevel targetLevel = player.server.getLevel(TestDimensionKeys.TEST_WORLD);
+        ServerLevel targetLevel = player.server.getLevel(TestDimensionKeys.TEST_WORLD());
         if (targetLevel == null) {
-            TestDimensionMod.LOGGER.error("Test dimension {} is not available", TestDimensionKeys.TEST_WORLD.location());
+            TestDimensionMod.LOGGER.error("Test dimension {} is not available", TestDimensionKeys.TEST_WORLD().location());
             source.sendFailure(Component.literal("Test dimension is not available."));
             return false;
         }
@@ -57,7 +59,7 @@ public final class PlayerStateManager {
             teleportToSavedOrFallback(player, data.testProfile().position());
         }
 
-        if (player.level().dimension() != TestDimensionKeys.TEST_WORLD) {
+        if (player.level().dimension() != TestDimensionKeys.TEST_WORLD()) {
             teleportToLevelSpawn(player, targetLevel);
         }
 
@@ -84,7 +86,7 @@ public final class PlayerStateManager {
         return true;
     }
 
-    public static void handleDimensionTransition(ServerPlayer player, net.minecraft.resources.ResourceKey<Level> from, net.minecraft.resources.ResourceKey<Level> to) {
+    public static void handleDimensionTransition(ServerPlayer player, ResourceKey<Level> from, ResourceKey<Level> to) {
         if (!isTestTransition(from, to)) {
             return;
         }
@@ -96,7 +98,7 @@ public final class PlayerStateManager {
 
         data.setSwitching(true);
         try {
-            if (to == TestDimensionKeys.TEST_WORLD) {
+            if (to == TestDimensionKeys.TEST_WORLD()) {
                 if (!data.isTestProfileInitialized()) {
                     PlayerStateProfile initialTestProfile = PlayerStateProfile.createDefaultTestProfile();
                     data.setTestProfile(initialTestProfile);
@@ -104,6 +106,8 @@ public final class PlayerStateManager {
                     TestDimensionMod.LOGGER.info("Initialized test profile for {}", player.getGameProfile().getName());
                 }
 
+                saveNormalRespawn(player, data);
+                restoreTestRespawn(player, data);
                 applyPermissionBoost(player, data);
                 applyPlayerState(player, data.testProfile());
                 data.setInTestDimension(true);
@@ -111,7 +115,9 @@ public final class PlayerStateManager {
                 return;
             }
 
-            if (from == TestDimensionKeys.TEST_WORLD) {
+            if (from == TestDimensionKeys.TEST_WORLD()) {
+                saveTestRespawn(player, data);
+                restoreNormalRespawn(player, data);
                 restorePermissionBoost(player, data);
                 applyPlayerState(player, data.normalProfile());
                 data.setInTestDimension(false);
@@ -144,6 +150,36 @@ public final class PlayerStateManager {
 
     public static int resolvePermissionLevel(ServerPlayer player) {
         return player.getServer().getProfilePermissions(player.getGameProfile());
+    }
+
+    private static void saveNormalRespawn(ServerPlayer player, PlayerDimensionData data) {
+        data.setNormalRespawn(
+                player.getRespawnPosition(),
+                player.getRespawnDimension(),
+                player.getRespawnAngle(),
+                player.isRespawnForced());
+    }
+
+    private static void restoreTestRespawn(ServerPlayer player, PlayerDimensionData data) {
+        BlockPos pos = data.getTestRespawnPos();
+        if (pos != null) {
+            player.setRespawnPosition(data.getTestRespawnDim(), pos, data.getTestRespawnAngle(), data.isTestRespawnForced(), false);
+        }
+    }
+
+    private static void saveTestRespawn(ServerPlayer player, PlayerDimensionData data) {
+        data.setTestRespawn(
+                player.getRespawnPosition(),
+                player.getRespawnDimension(),
+                player.getRespawnAngle(),
+                player.isRespawnForced());
+    }
+
+    private static void restoreNormalRespawn(ServerPlayer player, PlayerDimensionData data) {
+        if (data.isNormalRespawnSaved()) {
+            player.setRespawnPosition(data.getNormalRespawnDim(), data.getNormalRespawnPos(),
+                    data.getNormalRespawnAngle(), data.isNormalRespawnForced(), false);
+        }
     }
 
     public static PlayerStateProfile capturePlayerState(ServerPlayer player) {
@@ -182,7 +218,7 @@ public final class PlayerStateManager {
         player.containerMenu.broadcastChanges();
         player.initInventoryMenu();
 
-        if(isInTestDimension(player)&&player.isDeadOrDying()) {
+        if (isInTestDimension(player) && player.isDeadOrDying()) {
             player.setHealth(player.getMaxHealth());
         }
 
@@ -190,8 +226,8 @@ public final class PlayerStateManager {
 
         if (targetPosition != null) {
             teleportToSavedOrFallback(player, targetPosition);
-        } else if (player.level().dimension() == TestDimensionKeys.TEST_WORLD) {
-            ServerLevel targetLevel = player.server.getLevel(TestDimensionKeys.TEST_WORLD);
+        } else if (player.level().dimension() == TestDimensionKeys.TEST_WORLD()) {
+            ServerLevel targetLevel = player.server.getLevel(TestDimensionKeys.TEST_WORLD());
             if (targetLevel != null) {
                 teleportToLevelSpawn(player, targetLevel);
             }
@@ -266,30 +302,62 @@ public final class PlayerStateManager {
         target.setInTestDimension(source.isInTestDimension());
         target.setTestProfileInitialized(source.isTestProfileInitialized());
         target.setSwitching(false);
+        target.setRespawnInTestDimension(false);
         target.setSavedPermissionLevel(source.getSavedPermissionLevel());
         target.setPermissionOverridden(source.isPermissionOverridden());
+        target.setNormalRespawn(source.getNormalRespawnPos(), source.getNormalRespawnDim(),
+                source.getNormalRespawnAngle(), source.isNormalRespawnForced());
+        target.setTestRespawn(source.getTestRespawnPos(), source.getTestRespawnDim(),
+                source.getTestRespawnAngle(), source.isTestRespawnForced());
     }
 
     public static void reconcileAfterRespawnFromTestDimension(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
         PlayerDimensionData data = newPlayer.getData(ModAttachments.PLAYER_DIMENSION_DATA);
-        if (data.isSwitching() || oldPlayer.level().dimension() != TestDimensionKeys.TEST_WORLD) {
+        if (data.isSwitching() || oldPlayer.level().dimension() != TestDimensionKeys.TEST_WORLD()) {
             return;
         }
 
-        data.setTestProfile(capturePlayerState(oldPlayer));
-        applyPlayerState(newPlayer, data.normalProfile());
-        data.setInTestDimension(false);
-        restorePermissionBoost(newPlayer, data);
+        data.setRespawnInTestDimension(true);
         TestDimensionMod.LOGGER.info(
-                "Restored normal profile for {} after respawning from the test dimension",
+                "Marked {} for respawn in test dimension",
                 newPlayer.getGameProfile().getName());
     }
 
+    public static void teleportToTestDimensionRespawn(ServerPlayer player, ServerLevel targetLevel) {
+        PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
+        double x = 0.5D;
+        double y = 64.0D;
+        double z = 0.5D;
+
+        BlockPos testSpawn = data.getTestRespawnPos();
+        if (testSpawn != null) {
+            x = testSpawn.getX() + 0.5D;
+            y = testSpawn.getY();
+            z = testSpawn.getZ() + 0.5D;
+        } else if (player.getRespawnPosition() != null) {
+            var pos = player.getRespawnPosition().getCenter();
+            x = pos.x;
+            y = pos.y;
+            z = pos.z;
+        }
+
+        player.teleportTo(targetLevel, x, y, z, Set.<RelativeMovement>of(), player.getYRot(), player.getXRot());
+        data.setRespawnInTestDimension(false);
+        TestDimensionMod.LOGGER.info("Teleported {} to test dimension after respawn at ({}, {}, {})",
+                player.getGameProfile().getName(), x, y, z);
+    }
+
     private static void teleportToLevelSpawn(ServerPlayer player, ServerLevel targetLevel) {
-        if (targetLevel.dimension() == TestDimensionKeys.TEST_WORLD) {
+        if (targetLevel.dimension() == TestDimensionKeys.TEST_WORLD()) {
             double x = 0.5D;
             double y = 64.0D;
             double z = 0.5D;
+            if (player.getRespawnPosition() != null) {
+                Vec3 pos = player.getRespawnPosition().getCenter();
+                x = pos.x;
+                y = pos.y;
+                z = pos.z;
+            }
             player.teleportTo(targetLevel, x, y, z, Set.<RelativeMovement>of(), player.getYRot(), player.getXRot());
             return;
         }
@@ -306,7 +374,7 @@ public final class PlayerStateManager {
         if (savedPosition != null) {
             ResourceLocation dimensionId = ResourceLocation.tryParse(savedPosition.dimension());
             if (dimensionId != null) {
-                ServerLevel savedLevel = server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimensionId));
+                ServerLevel savedLevel = server.getLevel(ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimensionId));
                 if (savedLevel != null) {
                     player.teleportTo(savedLevel, savedPosition.x(), savedPosition.y(), savedPosition.z(), Set.<RelativeMovement>of(), savedPosition.yaw(), savedPosition.pitch());
                     return;
@@ -340,14 +408,14 @@ public final class PlayerStateManager {
     }
 
     private static boolean isInTestDimension(ServerPlayer player) {
-        return player.level().dimension() == TestDimensionKeys.TEST_WORLD;
+        return player.level().dimension() == TestDimensionKeys.TEST_WORLD();
     }
 
-    private static boolean isTestTransition(net.minecraft.resources.ResourceKey<Level> from, net.minecraft.resources.ResourceKey<Level> to) {
-        return from == TestDimensionKeys.TEST_WORLD || to == TestDimensionKeys.TEST_WORLD;
+    private static boolean isTestTransition(ResourceKey<Level> from, ResourceKey<Level> to) {
+        return from == TestDimensionKeys.TEST_WORLD() || to == TestDimensionKeys.TEST_WORLD();
     }
 
     private static boolean isPositionInTestDimension(SavedPosition savedPosition) {
-        return savedPosition != null && TestDimensionKeys.TEST_WORLD.location().toString().equals(savedPosition.dimension());
+        return savedPosition != null && TestDimensionKeys.TEST_WORLD().location().toString().equals(savedPosition.dimension());
     }
 }

@@ -5,7 +5,6 @@ import org.slf4j.Logger;
 import com.awfufu.testdimension.attachment.ModAttachments;
 import com.awfufu.testdimension.data.DimDataModifier;
 import com.awfufu.testdimension.event.TestDimensionEvents;
-import com.awfufu.testdimension.network.ModNetwork;
 import com.mojang.logging.LogUtils;
 
 import net.neoforged.bus.api.IEventBus;
@@ -19,10 +18,8 @@ public final class TestDimensionMod {
 
     public TestDimensionMod(IEventBus modBus) {
         ModAttachments.register(modBus);
-        ModNetwork.register(modBus);
         NeoForge.EVENT_BUS.register(TestDimensionEvents.class);
-        DimDataModifier.loadTypeConfigFromFile(DimDataModifier.getDefaultTypeConfigPath());
-        DimDataModifier.loadDimensionConfigFromFile(DimDataModifier.getDefaultDimensionConfigPath());
+        DimDataModifier.loadDefaultConfigsFromClasspath();
         LOGGER.info("Initializing {}", MOD_ID);
     }
 }

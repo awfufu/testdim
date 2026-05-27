@@ -20,7 +20,7 @@ public abstract class MixinPlayerPermission {
         if(thisPlayer == null) {return;}
         PlayerDimensionData data = thisPlayer.getData(ModAttachments.PLAYER_DIMENSION_DATA);
         if(data != null&& data.isInTestDimension()&&data.getSavedPermissionLevel()<2) {
-            TestDimensionMod.LOGGER.warn("Boosted permission changed for {}" , thisPlayer.getDisplayName());
+            //TestDimensionMod.LOGGER.debug("Boosted permission changed for {}" , thisPlayer.getDisplayName());
             cir.setReturnValue(2>=p_81370_);
         }
     }

@@ -21,7 +21,13 @@ public class DimensionTypeConfig {
     public boolean has_skylight;
     public boolean has_ceiling;
     public int monster_spawn_block_light_limit;
-    public String monster_spawn_light_level;
+    public MSLL monster_spawn_light_level;
+
+    private record MSLL(String type,int min_inclusive, int max_inclusive){
+        MSLL() {
+            this("minecraft:uniform", 0, 7);
+        }
+    }
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -42,7 +48,7 @@ public class DimensionTypeConfig {
         this.has_skylight = true;
         this.has_ceiling = false;
         this.monster_spawn_block_light_limit = 0;
-        this.monster_spawn_light_level = "{\"type\":\"minecraft:uniform\",\"min_inclusive\":0,\"max_inclusive\":7}";
+        this.monster_spawn_light_level = new MSLL();
     }
 
     public DimensionTypeConfig(DimensionTypeConfig other) {
@@ -69,7 +75,7 @@ public class DimensionTypeConfig {
         Gson gson = new Gson();
         DimensionTypeConfig config = gson.fromJson(json, DimensionTypeConfig.class);
         if (config.monster_spawn_light_level == null) {
-            config.monster_spawn_light_level = "0-7";
+            config.monster_spawn_light_level = new MSLL();
         }
         return config;
     }
@@ -103,9 +109,9 @@ public class DimensionTypeConfig {
         obj.addProperty("monster_spawn_block_light_limit", monster_spawn_block_light_limit);
         if (monster_spawn_light_level != null) {
             try {
-                obj.add("monster_spawn_light_level", new Gson().fromJson(monster_spawn_light_level, JsonObject.class));
+                obj.add("monster_spawn_light_level", new Gson().toJsonTree(monster_spawn_light_level));
             } catch (Exception e) {
-                obj.addProperty("monster_spawn_light_level", monster_spawn_light_level);
+                obj.addProperty("monster_spawn_light_level", new Gson().toJson(new MSLL()));
             }
         }
         return obj;
@@ -129,7 +135,7 @@ public class DimensionTypeConfig {
         c.has_skylight = false;
         c.has_ceiling = true;
         c.monster_spawn_block_light_limit = 15;
-        c.monster_spawn_light_level = "7";
+        c.monster_spawn_light_level = new MSLL();
         return c;
     }
 
@@ -151,7 +157,7 @@ public class DimensionTypeConfig {
         c.has_skylight = false;
         c.has_ceiling = false;
         c.monster_spawn_block_light_limit = 0;
-        c.monster_spawn_light_level = "7";
+        c.monster_spawn_light_level = new MSLL();
         return c;
     }
 }
