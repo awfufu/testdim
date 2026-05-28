@@ -20,7 +20,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 
-import javax.annotation.Nullable;
 import java.util.Set;
 
 public final class PlayerStateManager {
@@ -106,7 +105,6 @@ public final class PlayerStateManager {
                     TestDimensionMod.LOGGER.info("Initialized test profile for {}", player.getGameProfile().getName());
                 }
 
-                saveNormalRespawn(player, data);
                 restoreTestRespawn(player, data);
                 applyPermissionBoost(player, data);
                 applyPlayerState(player, data.testProfile());
@@ -116,7 +114,6 @@ public final class PlayerStateManager {
             }
 
             if (from == TestDimensionKeys.TEST_WORLD()) {
-                saveTestRespawn(player, data);
                 restoreNormalRespawn(player, data);
                 restorePermissionBoost(player, data);
                 applyPlayerState(player, data.normalProfile());
@@ -152,27 +149,11 @@ public final class PlayerStateManager {
         return player.getServer().getProfilePermissions(player.getGameProfile());
     }
 
-    private static void saveNormalRespawn(ServerPlayer player, PlayerDimensionData data) {
-        data.setNormalRespawn(
-                player.getRespawnPosition(),
-                player.getRespawnDimension(),
-                player.getRespawnAngle(),
-                player.isRespawnForced());
-    }
-
     private static void restoreTestRespawn(ServerPlayer player, PlayerDimensionData data) {
         BlockPos pos = data.getTestRespawnPos();
         if (pos != null) {
             player.setRespawnPosition(data.getTestRespawnDim(), pos, data.getTestRespawnAngle(), data.isTestRespawnForced(), false);
         }
-    }
-
-    private static void saveTestRespawn(ServerPlayer player, PlayerDimensionData data) {
-        data.setTestRespawn(
-                player.getRespawnPosition(),
-                player.getRespawnDimension(),
-                player.getRespawnAngle(),
-                player.isRespawnForced());
     }
 
     private static void restoreNormalRespawn(ServerPlayer player, PlayerDimensionData data) {
@@ -334,11 +315,8 @@ public final class PlayerStateManager {
             x = testSpawn.getX() + 0.5D;
             y = testSpawn.getY();
             z = testSpawn.getZ() + 0.5D;
-        } else if (player.getRespawnPosition() != null) {
-            var pos = player.getRespawnPosition().getCenter();
-            x = pos.x;
-            y = pos.y;
-            z = pos.z;
+            player.setRespawnPosition(data.getTestRespawnDim(), testSpawn,
+                    data.getTestRespawnAngle(), data.isTestRespawnForced(), false);
         }
 
         player.teleportTo(targetLevel, x, y, z, Set.<RelativeMovement>of(), player.getYRot(), player.getXRot());
