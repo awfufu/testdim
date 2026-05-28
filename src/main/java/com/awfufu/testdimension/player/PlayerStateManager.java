@@ -31,19 +31,19 @@ public final class PlayerStateManager {
         PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
         boolean inTestDimension = isInTestDimension(player);
         if (data.isSwitching()) {
-            source.sendFailure(Component.literal("Player state is already switching."));
+            source.sendFailure(Component.translatable("testdim.state.switching"));
             return false;
         }
 
         ServerLevel targetLevel = player.server.getLevel(TestDimensionKeys.TEST_WORLD());
         if (targetLevel == null) {
             TestDimensionMod.LOGGER.error("Test dimension {} is not available", TestDimensionKeys.TEST_WORLD().location());
-            source.sendFailure(Component.literal("Test dimension is not available."));
+            source.sendFailure(Component.translatable("testdim.state.dimension_unavailable"));
             return false;
         }
 
         if (inTestDimension) {
-            source.sendSuccess(() -> Component.literal("Already in the test dimension."), false);
+            source.sendSuccess(() -> Component.translatable("testdim.state.already_in"), false);
             return true;
         }
 
@@ -71,12 +71,12 @@ public final class PlayerStateManager {
         PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
         boolean inTestDimension = isInTestDimension(player);
         if (data.isSwitching()) {
-            source.sendFailure(Component.literal("Player state is already switching."));
+            source.sendFailure(Component.translatable("testdim.state.switching"));
             return false;
         }
 
         if (!inTestDimension) {
-            source.sendSuccess(() -> Component.literal("Player is not in the test dimension."), false);
+            source.sendSuccess(() -> Component.translatable("testdim.state.not_in"), false);
             return true;
         }
 

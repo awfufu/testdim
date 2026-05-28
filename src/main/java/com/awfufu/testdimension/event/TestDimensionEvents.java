@@ -18,7 +18,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.CommandEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -32,7 +31,7 @@ public final class TestDimensionEvents {
 
     private static final SimpleCommandExceptionType RESTRICTED_DIMENSION =
             new SimpleCommandExceptionType(
-                    Component.literal("In the test dimension, execute in can only target testdim:test"));
+                    Component.translatable("testdim.command.restricted_dimension"));
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
@@ -59,45 +58,50 @@ public final class TestDimensionEvents {
     }
 
     private static void wrapRedirectModifier(CommandNode<CommandSourceStack> inNode) {
-        RedirectModifier<CommandSourceStack> originalModifier = inNode.getRedirectModifier();
-        if (originalModifier == null) return;
+        CommandNode<CommandSourceStack> dimensionNode = inNode.getChild("dimension");
+        if (dimensionNode == null) return;
+        RedirectModifier<CommandSourceStack> originalModifier = dimensionNode.getRedirectModifier();
+        if (originalModifier == null) {
+            TestDimensionMod.LOGGER.error("dimension node has no redirect modifier");
+            return;
+        }
 
         RedirectModifier<CommandSourceStack> wrapped = context -> {
             CommandSourceStack source = context.getSource();
-            if (source.getEntity() instanceof ServerPlayer player) {
-                PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
-                if (data.isInTestDimension()) {
-                    var redirected = originalModifier.apply(context);
-                    for (CommandSourceStack rs : redirected) {
-                        if (rs.getLevel().dimension() != TestDimensionKeys.TEST_WORLD()) {
-                            throw RESTRICTED_DIMENSION.create();
-                        }
+            if (source.getLevel().dimension() == TestDimensionKeys.TEST_WORLD()) {
+                var redirected = originalModifier.apply(context);
+                for (CommandSourceStack rs : redirected) {
+                    if (rs.getLevel().dimension() != TestDimensionKeys.TEST_WORLD()) {
+                        throw RESTRICTED_DIMENSION.create();
                     }
-                    return redirected;
                 }
+                return redirected;
             }
             return originalModifier.apply(context);
         };
 
-        setPrivateField(CommandNode.class, inNode, "modifier", wrapped);
-        TestDimensionMod.LOGGER.info("Wrapped execute/in redirect modifier for test dimension restriction");
+        setPrivateField(CommandNode.class, dimensionNode, "modifier", wrapped);
+        TestDimensionMod.LOGGER.info("Wrapped execute/in/dimension redirect modifier for test dimension restriction");
     }
 
     @SuppressWarnings("unchecked")
     private static void wrapDimensionSuggestions(CommandNode<CommandSourceStack> inNode) {
         CommandNode<CommandSourceStack> dimNode = inNode.getChild("dimension");
-        if (dimNode == null) return;
+        if (dimNode == null) {
+            TestDimensionMod.LOGGER.error("Failed to apply dimension suggestions");
+            return;
+        }
 
         com.mojang.brigadier.arguments.ArgumentType<?> argType = getPrivateField(dimNode, "type");
 
         SuggestionProvider<CommandSourceStack> wrappedSuggestion = (ctx, builder) -> {
-            if (ctx.getSource().getEntity() instanceof ServerPlayer player) {
-                PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
-                if (data.isInTestDimension()) {
-                    builder.suggest(TestDimensionKeys.TEST_WORLD_ID().toString());
-                    return builder.buildFuture();
-                }
+
+
+            if (ctx.getSource().getLevel().dimension() == TestDimensionKeys.TEST_WORLD()) {
+                builder.suggest(TestDimensionKeys.TEST_WORLD_ID().toString());
+                return builder.buildFuture();
             }
+
             if (argType != null) {
                 argType.listSuggestions(ctx, builder);
             }
@@ -106,53 +110,6 @@ public final class TestDimensionEvents {
 
         setPrivateField(dimNode.getClass(), dimNode, "customSuggestions", wrappedSuggestion);
         TestDimensionMod.LOGGER.info("Replaced execute/in/dimension suggestion provider");
-    }
-
-    @SubscribeEvent
-    public static void onCommandEvent(CommandEvent event) {
-        String cmd = event.getParseResults().getReader().getString();
-        if (cmd == null || cmd.isEmpty()) return;
-
-        if (containsNonTestDimensionTarget(cmd) && isAnyPlayerInTestDimension()) {
-            event.setCanceled(true);
-            TestDimensionMod.LOGGER.info("Blocked cross-dimension command: {}", cmd);
-        }
-    }
-
-    private static boolean isAnyPlayerInTestDimension() {
-        var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
-        if (server == null) return false;
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            PlayerDimensionData data = player.getData(ModAttachments.PLAYER_DIMENSION_DATA);
-            if (data.isInTestDimension()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean containsNonTestDimensionTarget(String command) {
-        int idx = 0;
-        while ((idx = command.indexOf(" in ", idx)) != -1) {
-            idx += 4;
-            while (idx < command.length() && command.charAt(idx) == ' ') {
-                idx++;
-            }
-            int end = idx;
-            while (end < command.length() && !Character.isWhitespace(command.charAt(end))) {
-                end++;
-            }
-            String dimArg = command.substring(idx, end).trim();
-            if (!dimArg.isEmpty()) {
-                net.minecraft.resources.ResourceLocation loc =
-                        net.minecraft.resources.ResourceLocation.tryParse(dimArg);
-                if (loc != null && !TestDimensionKeys.TEST_WORLD_ID().equals(loc)) {
-                    return true;
-                }
-            }
-            idx = end;
-        }
-        return false;
     }
 
     @SubscribeEvent

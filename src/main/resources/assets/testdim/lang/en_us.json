@@ -1,0 +1,11 @@
+{
+  "testdim.command.enter": "Entered test dimension.",
+  "testdim.command.leave": "Returned from the test dimension.",
+  "testdim.command.reload.success": "Reloaded dimension config from files. Changes will take effect after server restart.",
+  "testdim.command.reload.failed": "Failed to reload: %s",
+  "testdim.command.restricted_dimension": "In the test dimension, execute in can only target testdim:test",
+  "testdim.state.switching": "Player state is already switching.",
+  "testdim.state.dimension_unavailable": "Test dimension is not available.",
+  "testdim.state.already_in": "Already in the test dimension.",
+  "testdim.state.not_in": "Player is not in the test dimension."
+}

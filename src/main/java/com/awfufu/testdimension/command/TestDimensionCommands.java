@@ -34,7 +34,7 @@ public final class TestDimensionCommands {
     private static int enter(CommandSourceStack source) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         if (PlayerStateManager.enterTestDimension(player, source)) {
-            source.sendSuccess(() -> Component.literal("Entered test dimension."), true);
+            source.sendSuccess(() -> Component.translatable("testdim.command.enter"), true);
             return 1;
         }
         return 0;
@@ -43,7 +43,7 @@ public final class TestDimensionCommands {
     private static int leave(CommandSourceStack source) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         if (PlayerStateManager.leaveTestDimension(player, source)) {
-            source.sendSuccess(() -> Component.literal("Returned from the test dimension."), true);
+            source.sendSuccess(() -> Component.translatable("testdim.command.leave"), true);
             return 1;
         }
         return 0;
@@ -53,11 +53,11 @@ public final class TestDimensionCommands {
         try {
             DimDataModifier.loadTypeConfigFromFile(DimDataModifier.getDefaultTypeConfigPath());
             DimDataModifier.loadDimensionConfigFromFile(DimDataModifier.getDefaultDimensionConfigPath());
-            source.sendSuccess(() -> Component.literal("Reloaded dimension config from files. Changes will take effect after server restart."), true);
+            source.sendSuccess(() -> Component.translatable("testdim.command.reload.success"), true);
             TestDimensionMod.LOGGER.info("Reloaded dimension config from files");
             return 1;
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Failed to reload: " + e.getMessage()));
+            source.sendFailure(Component.translatable("testdim.command.reload.failed", e.getMessage()));
             TestDimensionMod.LOGGER.error("Failed to reload dimension config", e);
             return 0;
         }

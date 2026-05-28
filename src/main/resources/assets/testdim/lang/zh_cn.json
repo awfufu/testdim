@@ -1,0 +1,11 @@
+{
+  "testdim.command.enter": "已进入测试维度。",
+  "testdim.command.leave": "已离开测试维度。",
+  "testdim.command.reload.success": "已从文件重新加载维度配置。更改将在服务器重启后生效。",
+  "testdim.command.reload.failed": "重新加载失败：%s",
+  "testdim.command.restricted_dimension": "在测试维度中，execute in 只能指向 testdim:test",
+  "testdim.state.switching": "玩家状态正在切换中。",
+  "testdim.state.dimension_unavailable": "测试维度不可用。",
+  "testdim.state.already_in": "已在测试维度中。",
+  "testdim.state.not_in": "玩家不在测试维度中。"
+}
